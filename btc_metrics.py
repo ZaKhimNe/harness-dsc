@@ -88,6 +88,7 @@ REF_MODES = {
 }
 
 DEFAULT_MODE = "answer_only"  # khớp định dạng submission BTC công bố
+PRIMARY = "meteor"            # tên khoá điểm chính — `compare.py` dùng chung với ir_metrics
 
 
 def build_reference(question, answer, ref_mode=DEFAULT_MODE):

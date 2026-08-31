@@ -1,12 +1,17 @@
 # Dữ liệu BTC — KHÔNG đưa lên repo công khai.
-# Sinh lại bằng: python make_dev.py --input <đường dẫn train.json>
+# Sinh lại: python make_dev.py --input <train.json> --outdir data     (Task 2)
+#           python make_dev.py --input <train.json> --outdir data_ir  (Task 1)
 data/*.json
+data_ir/*.json
 preds/
+preds_ir/
 *.zip
 submission*.zip
 
 # Dự đoán và điểm số sinh ra khi chạy
 scores*.json
+retrieved*.json
+silver*.json
 
 __pycache__/
 *.pyc

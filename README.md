@@ -110,6 +110,9 @@ chúng được sinh ra thế nào.
 | Tệp | Vai | Chức năng |
 |---|---|---|
 | `selftest.py` | hạ tầng | **Chạy đầu tiên.** Harness có chấm đúng không |
+| `ir_metrics.py` | hạ tầng | Bản sao cách chấm **Task 1** (precision/recall) |
+| `baselines_ir.py` | sinh | Trần/sàn Task 1 — gồm hai baseline dùng làm phép kiểm |
+| `evaluate_ir.py` | đọc | 1 tệp Task 1 → recall + precision + **đường cong theo k** |
 | `btc_metrics.py` | hạ tầng | Bản sao cách chấm của BTC. Mọi script gọi nó |
 | `meteor_ref.py` | hạ tầng | METEOR thuần Python, dự phòng khi thiếu `nltk` |
 | `make_dev.py` | hạ tầng | Đóng băng tập dev hai tầng. **Chạy một lần** |
@@ -328,6 +331,83 @@ chuỗi có thể trúng nhầm văn bản chứa đoạn giống nhau (bản g�
 Nên đo tỉ lệ khớp đa nghĩa trước khi dùng fine-tune. Và đây là **suy ra nhãn từ
 dữ liệu BTC cấp**, không phải tạo dữ liệu mới — nhiều khả năng hợp lệ, nhưng
 nên xác nhận với BTC cho chắc.
+
+---
+
+## Task 1 — truy hồi (LegalIR)
+
+```bash
+python make_dev.py --input ../drive-download-.../train.json --outdir data_ir
+python baselines_ir.py --gold data_ir/dev_main.json --outdir preds_ir
+python evaluate_ir.py --pred preds_ir/oracle_pad5.json --gold data_ir/dev_main.json
+python compare.py --task 1 --preds 'preds_ir/*.json' --gold data_ir/dev_main.json
+```
+
+`make_dev.py`, `guard.py`, `make_submission.py` và `compare.py` dùng chung cho
+cả hai task. `ir_metrics.py` và `btc_metrics.py` cố ý **cùng chữ ký**
+(`BACKEND, PRIMARY, DEFAULT_MODE, REF_MODES, score_all`) nên phần bootstrap so
+cặp và kiểm bất biến của `compare.py` không cần biết đang chấm task nào.
+
+### Bốn đặc điểm của `scoring.py` Task 1 — đã sao chép nguyên
+
+**1. Trần 5 đếm trên danh sách THÔ.** Nộp 6 id trong đó 1 trùng → `len()` = 6 →
+**câu đó 0 điểm**, dù chỉ có 5 id phân biệt. `guard.py --autofix` phải khử
+trùng lặp **trước**, rồi mới cắt 5.
+
+**2. `else 0` nằm trong biểu thức từng câu** → vượt trần chỉ giết **câu đó**,
+không giết cả bài nộp.
+
+**3. Thiếu `question_id` → `len(None)` → TypeError → crash → mất trắng.** Vẫn
+là rủi ro lớn nhất, hơn hẳn vượt trần.
+
+**4. Precision chia cho `len(y_pred[k])` thô còn tử số dùng `set()`** → trùng
+lặp bị phạt **hai lần**.
+
+### Ẩn số quyết định: LB chấm precision hay recall?
+
+`eval_retrieval` trả về **cả hai**, `metadata.yaml` chỉ ghi
+`command: python3 scoring.py`. Chưa ai biết cột nào lên bảng. Baseline trả lời
+chính xác cái giá của mỗi lựa chọn (1000 câu, `dev_main`):
+
+| Baseline | recall | precision | mean |
+|---|---|---|---|
+| `oracle_5` — gold, cắt 5 | 1,0000 | 1,0000 | 1,0000 |
+| **`oracle_pad5`** — gold + độn rác cho đủ 5 | **1,0000** | **0,2200** | 0,6100 |
+| **`oracle_1`** — chỉ 1 gold đầu | **0,9561** | **1,0000** | 0,9780 |
+| `random_5` | 0,0090 | 0,0024 | 0,0057 |
+| `empty` | 0,0000 | 0,0000 | 0,0000 |
+| `oracle_dup` — gold lặp 6 lần | 0,0000 | 0,0000 | 0,0000 |
+
+Hai hàng cuối phải ra **đúng 0** — đó là phép kiểm harness, không phải kết quả.
+
+Đường cong theo k (cắt bài nộp về k id đầu):
+
+| k | recall | precision | trung bình |
+|---|---|---|---|
+| **1** | 0,9561 | **1,0000** | **0,9780** |
+| 2 | 0,9952 | 0,5415 | 0,7683 |
+| 3 | 0,9988 | 0,3650 | 0,6819 |
+| 4 | 1,0000 | 0,2750 | 0,6375 |
+| **5** | **1,0000** | 0,2200 | 0,6100 |
+
+**Bất đối xứng khổng lồ, ngược với trực giác "nộp 5 vì không mất gì".** Nộp
+thêm 4 id rác được nhiều nhất **+0,044** recall, nhưng mất **0,780** precision.
+Chỉ 8,3% câu có nhiều hơn 1 gold (trung bình 1,10 gold/câu), nên recall gần như
+đã kịch trần ngay ở k=1.
+
+> Trừ khi LB chấm **thuần recall**, nộp 1 id là chiến thuật áp đảo.
+> `compare.py --task 1` báo **thứ hạng ĐẢO** giữa recall và precision — nên
+> chưa được chốt. Đo thẳng trên public LB: nộp cùng hệ thống hai lần, k=1 và
+> k=5, xem cột nào nhúc nhích. Submit không giới hạn nên miễn phí.
+
+### Ẩn số phụ: dạng tệp tham chiếu
+
+Cùng một lớp lỗi với bug `str()` bên Task 2 — BTC bóc `answer` cho `y_pred`
+nhưng **không bóc cho `y_true`**. Nếu tệp tham chiếu có dạng
+`{qid: {question, answer}}` thì `set(y_true[k])` = `{"question", "answer"}`,
+tức **tên khoá**, và recall về 0 cho mọi bài nộp. Hai trong ba dạng là suy
+biến, nên tham chiếu gần như chắc chắn là `{qid: [ids]}` — kiểm được bằng
+`ir_metrics.score_all(..., ref_shape="dict")` nếu nghi ngờ.
 
 ---
 

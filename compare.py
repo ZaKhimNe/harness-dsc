@@ -29,7 +29,18 @@ import json
 import random
 from pathlib import Path
 
-from btc_metrics import BACKEND, DEFAULT_MODE, REF_MODES, score_all
+def _load_metrics(task):
+    """Task 2 -> METEOR. Task 1 -> precision/recall.
+
+    Hai module cố ý cùng chữ ký (BACKEND, PRIMARY, DEFAULT_MODE, REF_MODES,
+    score_all) nên toàn bộ phần so cặp + kiểm bất biến dưới đây dùng chung
+    được, không cần biết đang chấm task nào.
+    """
+    if int(task) == 1:
+        import ir_metrics as M
+    else:
+        import btc_metrics as M
+    return M.BACKEND, M.PRIMARY, M.DEFAULT_MODE, M.REF_MODES, M.score_all
 
 
 def load_json(p):
@@ -69,10 +80,15 @@ def main():
     ap.add_argument("--preds", nargs="+", required=True,
                     help="danh sách tệp dự đoán (chấp nhận ký tự đại diện)")
     ap.add_argument("--gold", default="data/dev_main.json")
+    ap.add_argument("--task", type=int, choices=[1, 2], default=2,
+                    help="1 = truy hồi (precision/recall), 2 = sinh câu trả lời (METEOR)")
     ap.add_argument("--boot", type=int, default=2000, help="số lần lặp bootstrap")
     ap.add_argument("--no-pairwise", action="store_true",
                     help="bỏ phần so cặp, chỉ in bảng điểm")
     args = ap.parse_args()
+
+    BACKEND, PRIMARY, DEFAULT_MODE, REF_MODES, score_all = _load_metrics(args.task)
+    METRIC_NAME = "METEOR" if args.task == 2 else "TRUY HỒI"
 
     files = sorted({f for pat in args.preds for f in glob.glob(pat)})
     if not files:
@@ -88,17 +104,17 @@ def main():
         row, per = {}, None
         for m in modes:
             agg, p = score_all(gold, preds, m)
-            row[m] = agg["meteor"]
+            row[m] = agg[PRIMARY]
             if m == DEFAULT_MODE:
                 per = p
         table[name] = row
-        per_q[name] = [per[q]["meteor"] for q in sorted(gold)]
+        per_q[name] = [per[q][PRIMARY] for q in sorted(gold)]
 
     w = max(max(len(n) for n in table), 14) + 2
     width = w + 12 * len(modes)
 
     print("=" * width)
-    print(f"BẢNG SO SÁNH — METEOR   ({len(gold)} câu, {Path(args.gold).name}"
+    print(f"BẢNG SO SÁNH — {METRIC_NAME}   ({len(gold)} câu, {Path(args.gold).name}"
           + (f", nền chấm: {BACKEND}" if BACKEND != "nltk" else "") + ")")
     print("=" * width)
     print(f"{'Cấu hình':<{w}}" + "".join(f"{m:>12}" for m in modes))
