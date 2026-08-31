@@ -1,0 +1,11 @@
+{
+  "source": "../../drive-download-20260806T033107Z-1-001/train.json",
+  "seed": 42,
+  "n_dev_fast": 300,
+  "n_dev_main": 1000,
+  "n_sft": 6000,
+  "sha256_dev_fast": "96ff36ecd62e154f19dc47cd702cc7b66966e600dc3de2ed21b02aed1cbb3133",
+  "sha256_dev_main": "f5c4aafeb36c279ef49d7c65b6bc947d89af971d4b8bdfe35e257d2f5783c2af",
+  "sha256_source": "5376f45f658a52ea463b1c8b7ff24e612899064e86f25cab3ce8332d3b24f130",
+  "fast_is_subset_of_main": true
+}
